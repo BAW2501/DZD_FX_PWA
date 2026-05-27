@@ -393,8 +393,8 @@ async function fetchDZDRates() {
   const start = dateStr(daysAgo(31));
 
   try {
-    // Try the historical endpoint (includes current)
-    const res = await fetchWithTimeout(DZD_HISTORY_API(start, today), 8000);
+    // Try the historical endpoint (includes current) — use longer timeout for CORS proxy
+    const res = await fetchWithTimeout(DZD_HISTORY_API(start, today), 15000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
 
@@ -423,9 +423,9 @@ async function fetchDZDRates() {
 
   } catch (err) {
     console.warn('ExchangeDZ API error:', err.message);
-    // Fallback: try the simpler "latest" endpoint
+    // Fallback: try the simpler "latest" endpoint — also use longer timeout
     try {
-      const res2 = await fetchWithTimeout(DZD_CURRENT_API, 5000);
+      const res2 = await fetchWithTimeout(DZD_CURRENT_API, 10000);
       if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
       const j2 = await res2.json();
       const current = parseFloat(
@@ -465,6 +465,12 @@ async function fetchWithTimeout(url, ms) {
     
     const res = await fetch(fetchUrl, { signal: ctrl.signal, mode: 'cors' });
     return res;
+  } catch (err) {
+    // Convert abort errors to readable messages
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timeout (${ms}ms)`);
+    }
+    throw err;
   } finally {
     clearTimeout(id);
   }
@@ -713,7 +719,7 @@ function loadCache() {
 // ─── SERVICE WORKER ─────────────────────────────────────────────────────────
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js')
+    navigator.serviceWorker.register('/DZD_FX_PWA/service-worker.js')
       .catch(err => console.warn('SW registration failed:', err));
   }
 }
