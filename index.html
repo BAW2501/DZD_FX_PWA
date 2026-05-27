@@ -142,7 +142,7 @@
   <script>
     // Register Service Worker for offline support
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js', { scope: '/' })
+      navigator.serviceWorker.register('/DZD_FX_PWA/service-worker.js', { scope: '/DZD_FX_PWA/' })
         .then((reg) => {
           console.log('Service Worker registered:', reg);
           

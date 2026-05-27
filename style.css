@@ -44,6 +44,8 @@
 
 html {
   height: 100%;
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
@@ -545,8 +547,7 @@ input[type="number"] { -moz-appearance: textfield; }
 
 /* ── SCROLLBAR (webkit) ── */
 ::-webkit-scrollbar { 
-  width: 0;
-  height: 0;
+  display: none;
 }
 
 /* ── LANDSCAPE / TABLET ── */

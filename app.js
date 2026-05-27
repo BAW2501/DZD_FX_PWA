@@ -9,8 +9,9 @@
 const CACHE_KEY      = 'dzd_rates_v2';
 const CACHE_TTL_MS   = 12 * 60 * 60 * 1000; // 12 hours
 
-// CORS proxy for APIs without CORS headers
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// CORS proxy alternatives for APIs without CORS headers
+const CORS_PROXY_PRIMARY = 'https://api.allorigins.win/raw?url=';
+const CORS_PROXY_FALLBACK = 'https://cors-anywhere.herokuapp.com/';
 
 // Official EUR→X rates (free, no API key)
 const EUR_API = 'https://open.er-api.com/v6/latest/EUR';
@@ -360,13 +361,18 @@ async function fetchRates(force = false) {
 
     if (!dzdData && !state.eurToDzd) {
       updateStatus('error');
-      showToast('Could not fetch rates. Using defaults if available.');
+      showToast('❌ Cannot fetch DZD rates. Check connection.');
       return;
     }
 
     if (dzdData) {
       state.eurToDzd  = dzdData.current;
       state.history   = dzdData.history;
+    } else if (!dzdData && state.eurToDzd) {
+      // Have cached DZD data but couldn't refresh
+      updateStatus('cached');
+      showToast('⚠ Using cached rates (could not refresh)');
+      return;
     }
 
     if (eurData) {
@@ -382,6 +388,7 @@ async function fetchRates(force = false) {
   } catch (err) {
     console.error('fetchRates error:', err);
     updateStatus(navigator.onLine ? 'error' : 'offline');
+    if (navigator.onLine) showToast('Error fetching rates. Try again.');
   } finally {
     state.isFetching = false;
     spinner.classList.remove('spinning');
@@ -392,50 +399,71 @@ async function fetchDZDRates() {
   const today = dateStr(new Date());
   const start = dateStr(daysAgo(31));
 
-  try {
-    // Try the historical endpoint (includes current) — use longer timeout for CORS proxy
-    const res = await fetchWithTimeout(DZD_HISTORY_API(start, today), 15000);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
+  // Try both CORS proxies
+  const proxies = [CORS_PROXY_PRIMARY, CORS_PROXY_FALLBACK];
 
-    // Parse response — handle various response shapes
-    const rows = Array.isArray(json) ? json
-               : json.data           ? json.data
-               : json.rates          ? json.rates
-               : null;
-
-    if (!rows || rows.length === 0) throw new Error('empty response');
-
-    // Sort by date
-    rows.sort((a, b) => new Date(a.date || a.Date) - new Date(b.date || b.Date));
-
-    const history = rows.map(r => ({
-      date:  r.date || r.Date || r.dateTime,
-      value: parseFloat(
-        r.value || r.parallel || r.exchangedz || r.rate || r.close || r.open || r.buyRate || r.sellRate || 0
-      ),
-    })).filter(r => r.value > 0);
-
-    if (history.length === 0) throw new Error('no valid rows');
-
-    const current = history[history.length - 1].value;
-    return { current, history };
-
-  } catch (err) {
-    console.warn('ExchangeDZ API error:', err.message);
-    // Fallback: try the simpler "latest" endpoint — also use longer timeout
+  for (let proxyIdx = 0; proxyIdx < proxies.length; proxyIdx++) {
+    const proxy = proxies[proxyIdx];
+    
     try {
-      const res2 = await fetchWithTimeout(DZD_CURRENT_API, 10000);
-      if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
-      const j2 = await res2.json();
-      const current = parseFloat(
-        j2.rate || j2.parallel || j2.value || j2.close || j2.open || j2.buyRate || j2.sellRate || j2[0]?.value || 0
-      );
-      if (current > 0) return { current, history: [] };
-    } catch (_) { /* fall through */ }
+      // Try the historical endpoint (includes current)
+      const res = await fetchWithTimeout(DZD_HISTORY_API(start, today), 15000, proxy);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
 
-    return null;
+      // Parse response — handle various response shapes
+      const rows = Array.isArray(json) ? json
+                 : json.data           ? json.data
+                 : json.rates          ? json.rates
+                 : null;
+
+      if (!rows || rows.length === 0) throw new Error('empty response');
+
+      // Sort by date
+      rows.sort((a, b) => new Date(a.date || a.Date) - new Date(b.date || b.Date));
+
+      const history = rows.map(r => ({
+        date:  r.date || r.Date || r.dateTime,
+        value: parseFloat(
+          r.value || r.parallel || r.exchangedz || r.rate || r.close || r.open || r.buyRate || r.sellRate || 0
+        ),
+      })).filter(r => r.value > 0);
+
+      if (history.length === 0) throw new Error('no valid rows');
+
+      const current = history[history.length - 1].value;
+      console.log(`✓ ExchangeDZ data fetched via proxy ${proxyIdx + 1}`);
+      return { current, history };
+
+    } catch (err) {
+      console.warn(`Proxy ${proxyIdx + 1} failed (historical):`, err.message);
+      
+      // Try the simpler "latest" endpoint as fallback within the same proxy
+      try {
+        const res2 = await fetchWithTimeout(DZD_CURRENT_API, 10000, proxy);
+        if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
+        const j2 = await res2.json();
+        const current = parseFloat(
+          j2.rate || j2.parallel || j2.value || j2.close || j2.open || j2.buyRate || j2.sellRate || j2[0]?.value || 0
+        );
+        if (current > 0) {
+          console.log(`✓ ExchangeDZ latest rate fetched via proxy ${proxyIdx + 1} (no history)`);
+          return { current, history: [] };
+        }
+      } catch (err2) {
+        console.warn(`Proxy ${proxyIdx + 1} failed (latest):`, err2.message);
+      }
+
+      // Continue to next proxy if available
+      if (proxyIdx < proxies.length - 1) {
+        console.log(`Trying next proxy...`);
+      }
+    }
   }
+
+  // All proxies exhausted
+  console.error('❌ All CORS proxies failed - cannot fetch ExchangeDZ data');
+  return null;
 }
 
 async function fetchOfficialRates() {
@@ -454,13 +482,12 @@ async function fetchOfficialRates() {
   }
 }
 
-async function fetchWithTimeout(url, ms) {
+async function fetchWithTimeout(url, ms, proxyUrl = null) {
   const ctrl = new AbortController();
   const id    = setTimeout(() => ctrl.abort(), ms);
   try {
-    // Use CORS proxy for exchangedz.com (doesn't have CORS headers)
-    const fetchUrl = url.includes('exchangedz.com')
-      ? CORS_PROXY + encodeURIComponent(url)
+    const fetchUrl = proxyUrl 
+      ? proxyUrl + encodeURIComponent(url)
       : url;
     
     const res = await fetch(fetchUrl, { signal: ctrl.signal, mode: 'cors' });
