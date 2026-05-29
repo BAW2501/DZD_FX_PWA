@@ -358,9 +358,10 @@ input[type="number"] { -moz-appearance: textfield; }
 
 .ref-amount {
   font-size: 11px;
-  color: var(--text-3);
+  color: var(--text-1);
   margin-bottom: 5px;
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .ref-result {
@@ -425,7 +426,7 @@ input[type="number"] { -moz-appearance: textfield; }
 
 .chart-wrap {
   position: relative;
-  height: 140px;
+  height: 160px;
   margin: 0 -4px;
 }
 
