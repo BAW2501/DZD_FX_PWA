@@ -22,25 +22,20 @@ const DZD_HISTORY_API = (start, end) =>
   `https://www.exchangedz.com/api/rates/historical?assetId=EUR&start=${start}&end=${end}&sources=exchangedz`;
 
 const CURRENCIES = [
-  { code: 'DZD', name: 'Algerian Dinar',      flag: '🇩🇿' },
-  { code: 'USD', name: 'US Dollar',            flag: '🇺🇸' },
+  { code: 'DZD', name: 'Algerian Dinar',       flag: '🇩🇿' },
   { code: 'EUR', name: 'Euro',                 flag: '🇪🇺' },
+  { code: 'USD', name: 'US Dollar',            flag: '🇺🇸' },
+  { code: 'HUF', name: 'Hungarian Forint',     flag: '🇭🇺' },
   { code: 'GBP', name: 'British Pound',        flag: '🇬🇧' },
-  { code: 'JPY', name: 'Japanese Yen',         flag: '🇯🇵' },
-  { code: 'AUD', name: 'Australian Dollar',    flag: '🇦🇺' },
   { code: 'CAD', name: 'Canadian Dollar',      flag: '🇨🇦' },
   { code: 'CHF', name: 'Swiss Franc',          flag: '🇨🇭' },
-  { code: 'CNY', name: 'Chinese Yuan',         flag: '🇨🇳' },
-  { code: 'INR', name: 'Indian Rupee',         flag: '🇮🇳' },
-  { code: 'GHS', name: 'Ghanaian Cedi',        flag: '🇬🇭' },
-  { code: 'NGN', name: 'Nigerian Naira',       flag: '🇳🇬' },
-  { code: 'XOF', name: 'CFA Franc (BCEAO)',    flag: '🌍' },
-  { code: 'SAR', name: 'Saudi Riyal',          flag: '🇸🇦' },
-  { code: 'AED', name: 'UAE Dirham',           flag: '🇦🇪' },
   { code: 'TRY', name: 'Turkish Lira',         flag: '🇹🇷' },
+  { code: 'CNY', name: 'Chinese Yuan',         flag: '🇨🇳' },
+  { code: 'JPY', name: 'Japanese Yen',         flag: '🇯🇵' },
+  { code: 'INR', name: 'Indian Rupee',         flag: '🇮🇳' },
+  { code: 'SAR', name: 'Saudi Riyal',          flag: '🇸🇦' },
   { code: 'MAD', name: 'Moroccan Dirham',      flag: '🇲🇦' },
   { code: 'TND', name: 'Tunisian Dinar',       flag: '🇹🇳' },
-  { code: 'HUF', name: 'Hungarian Forint',     flag: '🇭🇺' },
 ];
 
 // Quick reference amounts: always show 3 useful conversions
@@ -160,6 +155,105 @@ function bindEvents() {
 
   // Resize: re-render chart
   window.addEventListener('resize', debounce(renderChart, 200));
+
+  // Chart interaction: mouse move and touch
+  setupChartInteraction();
+}
+
+function setupChartInteraction() {
+  const hoverInfo = document.createElement('div');
+  hoverInfo.id = 'chart-hover-info';
+  hoverInfo.style.cssText = `
+    position: absolute;
+    background: rgba(200,169,110,0.95);
+    color: #0C0C12;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    pointer-events: none;
+    display: none;
+    z-index: 100;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+  `;
+  
+  const chartWrap = chartCanvas.parentElement;
+  chartWrap.style.position = 'relative';
+  chartWrap.appendChild(hoverInfo);
+
+  function findNearestDataPoint(clientX, clientY) {
+    if (!state.chartData || !state.chartCoords) return null;
+    
+    const rect = chartCanvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    
+    const { toX, PAD_L, PAD_R, W } = state.chartCoords;
+    
+    // Check if click is within chart bounds
+    if (x < PAD_L || x > W - PAD_R) return null;
+    
+    // Find nearest data point
+    let nearest = null;
+    let minDist = Infinity;
+    
+    state.chartData.forEach((point, idx) => {
+      const px = toX(idx);
+      const dist = Math.abs(px - x);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = { idx, point, px };
+      }
+    });
+    
+    return minDist < 30 ? nearest : null; // 30px snap distance
+  }
+
+  function showHoverInfo(dataPoint) {
+    if (!dataPoint) {
+      hoverInfo.style.display = 'none';
+      return;
+    }
+
+    const { point, px } = dataPoint;
+    const { toCurrency: to } = state;
+    const date = shortDate(point.date);
+    const value = fmt(point.value, to);
+    
+    hoverInfo.textContent = `${date}: ${value}`;
+    
+    const rect = chartCanvas.getBoundingClientRect();
+    const infoX = rect.left + px - hoverInfo.offsetWidth / 2;
+    const infoY = rect.top - 30;
+    
+    hoverInfo.style.left = Math.max(0, infoX) + 'px';
+    hoverInfo.style.top = infoY + 'px';
+    hoverInfo.style.display = 'block';
+  }
+
+  // Mouse move
+  chartCanvas.addEventListener('mousemove', (e) => {
+    const nearest = findNearestDataPoint(e.clientX, e.clientY);
+    showHoverInfo(nearest);
+  });
+
+  // Touch move (for mobile)
+  chartCanvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 0) {
+      const nearest = findNearestDataPoint(e.touches[0].clientX, e.touches[0].clientY);
+      showHoverInfo(nearest);
+    }
+  });
+
+  // Hide on leave
+  chartCanvas.addEventListener('mouseleave', () => {
+    hoverInfo.style.display = 'none';
+  });
+
+  chartCanvas.addEventListener('touchend', () => {
+    hoverInfo.style.display = 'none';
+  });
 }
 
 function flipOtherCurrency(changedSide) {
@@ -336,7 +430,7 @@ function buildRefAmounts(from, to) {
 // ─── CHART TITLE ────────────────────────────────────────────────────────────
 function updateChartTitle() {
   const { fromCurrency: from, toCurrency: to } = state;
-  chartTitle.textContent = `30-Day ${from}/${to} Chart`;
+  chartTitle.textContent = `6-Month ${from}/${to} Chart`;
 }
 
 // ─── API FETCHING ────────────────────────────────────────────────────────────
@@ -397,7 +491,7 @@ async function fetchRates(force = false) {
 
 async function fetchDZDRates() {
   const today = dateStr(new Date());
-  const start = dateStr(daysAgo(31));
+  const start = dateStr(daysAgo(180)); // 6 months of history
 
   // Try both CORS proxies
   const proxies = [CORS_PROXY_PRIMARY, CORS_PROXY_FALLBACK];
@@ -554,12 +648,31 @@ function renderChart() {
   const maxV  = Math.max(...vals);
   const range = maxV - minV || 1;
 
-  const PAD_L = 4, PAD_R = 4, PAD_T = 12, PAD_B = 8;
+  const PAD_L = 40, PAD_R = 10, PAD_T = 12, PAD_B = 30;
   const chartW = W - PAD_L - PAD_R;
   const chartH = H - PAD_T - PAD_B;
 
   const toX = i  => PAD_L + (i / (data.length - 1)) * chartW;
   const toY = v  => PAD_T + (1 - (v - minV) / range) * chartH;
+
+  // Y-axis labels (left side)
+  ctx.font = '11px -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 2; i++) {
+    const y = PAD_T + (i / 2) * chartH;
+    const v = maxV - (i / 2) * range;
+    ctx.fillText(fmt(v, to), PAD_L - 8, y);
+  }
+
+  // X-axis line
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, H - PAD_B);
+  ctx.lineTo(W - PAD_R, H - PAD_B);
+  ctx.stroke();
 
   // Grid lines (subtle)
   ctx.strokeStyle = 'rgba(255,255,255,0.04)';
@@ -643,6 +756,10 @@ function renderChart() {
   const mid   = data[Math.floor(data.length / 2)].date;
   const last  = data[data.length - 1].date;
   chartDates.innerHTML = [first, mid, last].map(d => `<span>${shortDate(d)}</span>`).join('');
+
+  // Store chart data for hover interaction
+  state.chartData = data;
+  state.chartCoords = { toX, toY, PAD_L, PAD_R, PAD_T, PAD_B, W, H };
 }
 
 function buildChartData(from, to, history) {
