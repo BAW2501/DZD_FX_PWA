@@ -1,199 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0C0C12" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="DZD" />
-  <meta name="description" content="Real DZD parallel market exchange rates" />
-
-  <link rel="manifest" href="manifest.json" />
-  <!-- <link rel="apple-touch-icon" href="icons/icon-192.png" /> -->
-  <!-- <link rel="icon" type="image/png" href="icons/icon-192.png" /> -->
-
-  <title>DZD Converter</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230C0C12' width='100' height='100'/><text x='50' y='60' font-size='50' font-weight='bold' fill='%23C8A96E' text-anchor='middle' font-family='system-ui'>D</text></svg>" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1209" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="What the Algerian dinar is really worth.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%239FE870'/><text x='50' y='66' font-size='52' font-weight='800' fill='%23163300' text-anchor='middle' font-family='system-ui'>DZ</text></svg>">
+  <title>Real DZD</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <noscript>
-    <div style="padding: 20px; text-align: center; color: #E05D50; font-family: system-ui;">
-      This app requires JavaScript to run. Please enable JavaScript and refresh.
+<main>
+  <header>
+    <h1>Real DZD</h1>
+    <button id="status" type="button"><i></i><span>Loading rates</span></button>
+  </header>
+
+  <section class="conv" aria-label="Converter">
+    <div class="field">
+      <label for="from-amt">You send</label>
+      <div class="row">
+        <input id="from-amt" inputmode="decimal" autocomplete="off" value="100">
+        <span class="sel"><select id="from" aria-label="Currency you send"></select></span>
+      </div>
     </div>
-  </noscript>
-
-  <!-- STATUS BAR — tap to refresh -->
-  <div id="status-bar" role="button" tabindex="0" aria-label="Connection status. Tap to refresh rates.">
-    <div id="status-dot"></div>
-    <span id="status-text">Connecting…</span>
-    <span id="status-time"></span>
-    <div id="refresh-spinner" aria-hidden="true"></div>
-  </div>
-
-  <main id="app">
-
-    <!-- CONVERTER CARD -->
-    <section class="card converter-card" aria-label="Currency converter">
-
-      <!-- FROM row -->
-      <div class="conv-row" id="from-row">
-        <div class="row-label">From</div>
-        <div class="row-body">
-          <div class="currency-select-wrap">
-            <select id="from-currency" aria-label="From currency"></select>
-            <span class="select-chevron" aria-hidden="true">
-              <svg viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-          </div>
-          <input
-            id="from-amount"
-            type="number"
-            inputmode="decimal"
-            placeholder="0"
-            autocomplete="off"
-            aria-label="Amount to convert"
-          />
-        </div>
+    <button id="swap" type="button" aria-label="Swap currencies">
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V4M6 4L3 7M6 4l3 3M14 4v12M14 16l-3-3M14 16l3-3"/></svg>
+    </button>
+    <div class="field">
+      <label for="to-amt">They get</label>
+      <div class="row">
+        <input id="to-amt" inputmode="decimal" autocomplete="off">
+        <span class="sel"><select id="to" aria-label="Currency they get"></select></span>
       </div>
+    </div>
+  </section>
 
-      <!-- SWAP BUTTON -->
-      <div class="swap-row" aria-hidden="true">
-        <div class="swap-line"></div>
-        <button id="swap-btn" aria-label="Swap currencies" title="Swap currencies">
-          <svg viewBox="0 0 20 20" fill="none">
-            <path d="M6 4v12M6 16l-3-3M6 16l3-3M14 16V4M14 4l-3 3M14 4l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div class="swap-line"></div>
+  <p id="rate" class="rate">&nbsp;</p>
+
+  <section id="gap" class="gap" hidden>
+    <div><span>Bank rate</span><b id="bank"></b></div>
+    <div><span>Real rate</span><b id="real"></b></div>
+    <p id="gap-note"></p>
+  </section>
+
+  <section id="chart" class="chart" aria-label="Rate history">
+    <div class="ch-top">
+      <div>
+        <span id="cl" class="mute"></span>
+        <strong id="cv"></strong>
+        <span><b id="cp"></b> <span id="cd" class="mute"></span></span>
       </div>
-
-      <!-- TO row -->
-      <div class="conv-row" id="to-row">
-        <div class="row-label">To</div>
-        <div class="row-body">
-          <div class="currency-select-wrap">
-            <select id="to-currency" aria-label="To currency"></select>
-            <span class="select-chevron" aria-hidden="true">
-              <svg viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-          </div>
-          <input
-            id="to-amount"
-            type="number"
-            inputmode="decimal"
-            placeholder="0"
-            autocomplete="off"
-            aria-label="Converted amount"
-          />
-        </div>
+      <div class="tabs" role="group" aria-label="Time range">
+        <button data-r="30" type="button">1M</button>
+        <button data-r="90" type="button" aria-pressed="true">3M</button>
+        <button data-r="180" type="button">6M</button>
       </div>
+    </div>
+    <div id="plot"></div>
+    <p class="none">History is available for pairs that include the dinar.</p>
+  </section>
 
-      <!-- RATE LINE -->
-      <div class="rate-line" id="rate-line" aria-live="polite">—</div>
+  <section class="ref">
+    <h2>Quick amounts</h2>
+    <ul id="ref"></ul>
+  </section>
 
-    </section>
-
-    <!-- QUICK REFERENCE CARD -->
-    <section class="card ref-card" aria-label="Quick reference conversions">
-      <div class="card-title">Quick Reference</div>
-      <div id="ref-grid" class="ref-grid">
-        <div class="ref-item skeleton"></div>
-        <div class="ref-item skeleton"></div>
-        <div class="ref-item skeleton"></div>
-      </div>
-    </section>
-
-    <!-- CHART CARD -->
-    <section class="card chart-card" aria-label="6-month historical rate chart">
-      <div class="chart-header">
-        <div class="card-title" id="chart-title">30-Day Chart</div>
-        <div class="chart-stats" id="chart-stats"></div>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="rate-chart" aria-label="Historical rate chart"></canvas>
-        <div id="chart-overlay" class="chart-overlay">
-          <div class="chart-overlay-text">Loading chart data…</div>
-        </div>
-      </div>
-      <div class="chart-dates" id="chart-dates"></div>
-    </section>
-
-    <!-- DISCLAIMER -->
-    <p class="disclaimer">
-      Parallel market rates for informational purposes only.<br>
-      Always verify with your exchanger before transactions.
-    </p>
-
-    <!-- FOOTER -->
-    <footer class="footer">
-      <p class="footer-text">
-        Built with ❤️ by <a href="https://github.com/BAW2501/" target="_blank" rel="noopener">Belhadj Ahmed Walid</a>
-      </p>
-    </footer>
-
-  </main>
-
-  <!-- TOAST -->
-  <div id="toast" role="status" aria-live="polite"></div>
-
-  <script src="app.js"></script>
-  <script>
-    // Register Service Worker for offline support
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/DZD_FX_PWA/service-worker.js', { scope: '/DZD_FX_PWA/' })
-        .then((reg) => {
-          console.log('Service Worker registered:', reg);
-          
-          // Check for updates periodically
-          setInterval(() => {
-            reg.update();
-          }, 60000); // Check every 60 seconds
-          
-          // Listen for service worker updates
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
-                // New service worker is ready and there's an old one
-                showUpdateNotification();
-              }
-            });
-          });
-        })
-        .catch((error) => {
-          console.warn('Service Worker registration failed:', error);
-        });
-    }
-
-    // Show update notification
-    function showUpdateNotification() {
-      const toast = document.getElementById('toast');
-      toast.textContent = 'Update available. Refresh to get the latest version.';
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 5000);
-    }
-
-    // Monitor online/offline status
-    function updateConnectionStatus() {
-      const statusDot = document.getElementById('status-dot');
-      const statusText = document.getElementById('status-text');
-      
-      if (navigator.onLine) {
-        statusDot.className = 'online';
-        statusText.textContent = 'Online';
-      } else {
-        statusDot.className = 'offline';
-        statusText.textContent = 'Offline (cached data)';
-      }
-    }
-
-    window.addEventListener('online', updateConnectionStatus);
-    window.addEventListener('offline', updateConnectionStatus);
-    
-    // Check status on load
-    document.addEventListener('DOMContentLoaded', updateConnectionStatus);
-  </script>
+  <p class="note">
+    Street rates for information only. Check with your exchanger before you trade.<br>
+    Built by <a href="https://github.com/BAW2501/" target="_blank" rel="noopener">Belhadj Ahmed Walid</a>
+  </p>
+</main>
+<script src="app.js"></script>
 </body>
 </html>

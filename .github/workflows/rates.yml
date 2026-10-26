@@ -1,0 +1,46 @@
+name: Update rates
+on:
+  schedule:
+    - cron: '17 */6 * * *'   # 4 runs/day; source data is daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: rates
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: rates.json
+          sparse-checkout-cone-mode: false
+
+      - name: Fetch and slim down
+        run: |
+          START=$(date -u -d '180 days ago' +%FT%T.000Z)
+          END=$(date -u +%FT%T.000Z)
+          curl -fsS --max-time 20 --retry 2 -G 'https://www.exchangedz.com/api/rates/historical' \
+            -H 'Accept: application/json' \
+            -H 'Referer: https://www.exchangedz.com/rates/eur-to-dzd' \
+            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0' \
+            --data-urlencode 'assetId=EUR' \
+            --data-urlencode "start=$START" \
+            --data-urlencode "end=$END" \
+            --data-urlencode 'sources=exchangedz,official' |
+          jq -c '{
+            rows: ([.data[] | select(.source=="exchangedz") | [.date[:10], .buyRate, .sellRate]] | sort_by(.[0])),
+            bank: ([.data[] | select(.source=="official")] | sort_by(.date) | last | [.buyRate, .sellRate])
+          }' > new.json
+          test "$(jq '.rows | length' new.json)" -gt 0
+          mv new.json rates.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name rates-bot
+          git config user.email rates-bot@users.noreply.github.com
+          git add rates.json
+          git diff --staged --quiet || (git commit -m "Update rates" && git push)
