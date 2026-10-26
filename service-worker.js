@@ -1,5 +1,5 @@
-const V = 'dzd-v3';
-const SHELL = ['./', './index.html', './style.css', './app.js', './manifest.json'];
+const V = 'dzd-v4';
+const SHELL = ['./', './index.html', './style.css', './app.js', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

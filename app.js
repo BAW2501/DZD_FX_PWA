@@ -16,8 +16,30 @@ const eur   = (c, row = last()) => c === 'DZD' ? 1 / mid(row) : 1 / S.off[c];
 const rate  = (a, b, row) => eur(a, row) / eur(b, row);
 
 const dec  = n => n >= 100 ? 2 : n >= 1 ? 4 : 6;
-const show = n => Number.isFinite(n) ? n.toLocaleString('en-US', { maximumFractionDigits: dec(Math.abs(n)) }) : '-';
-const raw  = n => String(+n.toFixed(dec(Math.abs(n))));
+const grp  = s => s.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');           // 1234567 -> 1 234 567
+const show = n => {
+  if (!Number.isFinite(n)) return '-';
+  const [i, f] = (+Math.abs(n).toFixed(dec(Math.abs(n)))).toString().split('.');
+  return (n < 0 ? '-' : '') + grp(i) + (f ? '.' + f : '');
+};
+const num  = s => parseFloat(String(s).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.'));
+const fit  = el => { const n = el.value.length; el.style.fontSize = n > 14 ? '22px' : n > 11 ? '28px' : ''; };
+
+// Re-format an input as the user types, keeping the caret next to the same digit.
+function typed(el) {
+  const keep = el.value.slice(0, el.selectionStart).replace(/[^\d.,]/g, '').length;
+  let s = el.value.replace(/,/g, '.').replace(/[^\d.]/g, '');
+  const k = s.indexOf('.');
+  if (k >= 0) s = s.slice(0, k + 1) + s.slice(k + 1).replace(/\./g, '');
+  let [i, f] = s.split('.');
+  i = i.replace(/^0+(?=\d)/, '');
+  const out = grp(i) + (f !== undefined ? '.' + f : '');
+  el.value = out;
+  let c = 0, n = 0;
+  while (c < out.length && n < keep) { if (/[\d.]/.test(out[c])) n++; c++; }
+  el.setSelectionRange(c, c);
+  fit(el);
+}
 const fd   = d => new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short', timeZone:'UTC' });
 
 // ── Converter ──────────────────────────────────────────────────────────────
@@ -25,9 +47,10 @@ function calc() {
   if (!ready()) return;
   const a = $('#from-amt'), b = $('#to-amt');
   const [src, dst, x, y] = S.side === 'from' ? [a, b, S.from, S.to] : [b, a, S.to, S.from];
-  const n = parseFloat(src.value.replace(',', '.'));
+  const n = num(src.value);
   const out = n * rate(x, y);
-  dst.value = Number.isFinite(out) ? raw(out) : '';
+  dst.value = Number.isFinite(out) ? show(out) : '';
+  fit(a); fit(b);
 }
 
 function drawRate() {
@@ -72,7 +95,7 @@ function drawChart() {
          <stop offset="0" style="stop-color:var(--line);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--line);stop-opacity:0"/>
        </linearGradient></defs>
        <path class="ar" d="${d}L600 160L0 160Z" fill="url(#g)"/><path class="ln" d="${d}"/>
-     </svg><i id="dot"></i>`;
+     </svg><em class="hi">${show(Math.max(...v))}</em><em class="lo">${show(lo)}</em><i id="dot"></i>`;
   pick(v.length - 1);
 }
 
@@ -147,8 +170,10 @@ function init() {
   }
   $('#from').onchange = e => { if (e.target.value === S.to) S.to = S.from; S.from = e.target.value; sync(); };
   $('#to').onchange   = e => { if (e.target.value === S.from) S.from = S.to; S.to = e.target.value; sync(); };
-  $('#from-amt').oninput = () => { S.side = 'from'; calc(); };
-  $('#to-amt').oninput   = () => { S.side = 'to'; calc(); };
+  for (const el of [$('#from-amt'), $('#to-amt')]) {
+    el.onfocus = () => setTimeout(() => el.select());
+    el.oninput = () => { S.side = el.id === 'from-amt' ? 'from' : 'to'; typed(el); calc(); };
+  }
   $('#swap').onclick = () => {
     [S.from, S.to] = [S.to, S.from];
     const a = $('#from-amt'), b = $('#to-amt');
